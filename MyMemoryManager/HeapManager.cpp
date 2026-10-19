@@ -113,9 +113,11 @@ void  HeapManager::Coalesce()
 	MemBlockDesc* currentBlock = head->next;
 	MemBlockDesc* nextBlock = head->next;
 	MemBlockDesc* adjacentBlock;
+	bool mergedAny = true;
 	// Repeat passes over the list, because one pass can miss merges
-	while (currentBlock->next != nullptr)
+	while (mergedAny)
 	{
+		mergedAny = false;
 		// One pass: merge each free block with the free block directly after it
 		do
 		{
@@ -127,6 +129,7 @@ void  HeapManager::Coalesce()
 				// Absorb the neighbour's space and unlink it from the list
 				currentBlock->fullSize += currentBlock->next->fullSize;
 				currentBlock->next = currentBlock->next->next;
+				mergedAny = true;
 			}
 			nextBlock = currentBlock->next;
 		} while (currentBlock->next != nullptr);
