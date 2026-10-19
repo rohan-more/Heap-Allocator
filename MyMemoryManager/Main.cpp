@@ -39,7 +39,7 @@ void main(int argc, char **argv)
 	do
 	{
 		size_t sizeAlloc = static_cast<size_t>(rand() & 1023);// max allocation = 1024;
-		void * pPtr = pHeapManager->myAlloc(sizeAlloc);
+		void * pPtr = pHeapManager->Allocate(sizeAlloc);
 		DEBUG_PRINT("The memory allocated is: %p , %d \n", pPtr,sizeAlloc);
 		numberOfAllocations--;
 		if (pPtr)
@@ -64,7 +64,7 @@ void main(int argc, char **argv)
 		while (!allocatedAddresses.empty())
 		{
 			void * pPtr = allocatedAddresses.back();
-			if (pHeapManager->myFree(pPtr))
+			if (pHeapManager->Free(pPtr))
 			{
 				DEBUG_PRINT("The memory at %p has been freed\n", pPtr);
 			}
@@ -80,7 +80,7 @@ void main(int argc, char **argv)
 	do
 	{
 		size_t sizeAlloc = static_cast<size_t>(rand() & 4095);// max allocation = 4096;
-		void * pPtr = pHeapManager->myAlloc(sizeAlloc);
+		void * pPtr = pHeapManager->Allocate(sizeAlloc);
 		DEBUG_PRINT("The memory allocated is: %p , %d \n", pPtr, sizeAlloc);
 		numberOfAllocations--;
 		if (pPtr)
@@ -105,7 +105,7 @@ void main(int argc, char **argv)
 		while (!allocatedAddresses.empty())
 		{
 			void * pPtr = allocatedAddresses.back();
-			if (pHeapManager->myFree(pPtr))
+			if (pHeapManager->Free(pPtr))
 			{
 				DEBUG_PRINT("The memory at %p has been freed\n", pPtr);
 			}
@@ -113,13 +113,13 @@ void main(int argc, char **argv)
 		}
 	}
 	////////////////////////////   UNIT TEST TO CHECK FREE ONLY FREES ALLOCATED MEMORY   ////////////////////////////
-	if (!pHeapManager->myFree(reinterpret_cast<void *> (rand())))
+	if (!pHeapManager->Free(reinterpret_cast<void *> (rand())))
 	{
 		DEBUG_PRINT("The memory you tried to free is not valid\n");
 	}
 
-	pHeapManager->myCollect();
-	void * pPtr = pHeapManager->myAlloc(1024 * 1024 - 8192);
+	pHeapManager->Coalesce();
+	void * pPtr = pHeapManager->Allocate(1024 * 1024 - 8192);
 	DEBUG_PRINT("The memory allocated is: %p  \n", pPtr);
 	_aligned_free(pHeapMemory);
 }

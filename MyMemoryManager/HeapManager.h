@@ -6,9 +6,9 @@ class HeapManager
 {
 public:
 	static HeapManager * Create(void * pHeapMemory, size_t sizeHeap);
-	void * myAlloc(size_t chunkSize);
-	bool myFree(void * pPtr);
-	void myCollect();
+	void * Allocate(size_t chunkSize);
+	bool Free(void * pPtr);
+	void Coalesce();
 
 private:
 	typedef struct MemBlockDescriptor

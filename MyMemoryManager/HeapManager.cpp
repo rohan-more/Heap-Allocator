@@ -22,7 +22,7 @@ HeapManager* HeapManager::Create(void* heapMemory, size_t sizeHeap)
 	}
 }
 
-void* HeapManager::myAlloc(size_t chunkSize)
+void* HeapManager::Allocate(size_t chunkSize)
 {
 	MemBlockDesc* currentBlock = head->next;
 	MemBlockDesc* nextBlock = head->next;
@@ -71,7 +71,7 @@ void* HeapManager::myAlloc(size_t chunkSize)
 }
 
 
-bool HeapManager::myFree(void* pPtr)
+bool HeapManager::Free(void* pPtr)
 {
 	MemBlockDesc* currentBlock = head->next;
 	MemBlockDesc* nextBlock = head->next;
@@ -88,7 +88,7 @@ bool HeapManager::myFree(void* pPtr)
 	return false;
 }
 
-void  HeapManager::myCollect()
+void  HeapManager::Coalesce()
 {
 	MemBlockDesc* currentBlock = head->next;
 	MemBlockDesc* nextBlock = head->next;
