@@ -24,8 +24,8 @@ HeapManager* HeapManager::Create(void* heapMemory, size_t sizeHeap)
 
 void* HeapManager::myAlloc(size_t chunkSize)
 {
-	MemBlockDesc* traverseTemp = head->next;
-	MemBlockDesc* tempTraverseTemp = head->next;
+	MemBlockDesc* currentBlock = head->next;
+	MemBlockDesc* nextBlock = head->next;
 	size_t neededSize = ROUND_UP(sizeof(MemBlockDesc) + chunkSize, 4);
 	if (memoryList == nullptr && (heapManager->endOfHeap - heapManager->currentPosOfHeap) >= neededSize)
 	{
@@ -43,28 +43,28 @@ void* HeapManager::myAlloc(size_t chunkSize)
 		//second hand memory	
 		do
 		{
-			traverseTemp = tempTraverseTemp;
-			if (traverseTemp->fullSize >= neededSize && !traverseTemp->isInUse)
+			currentBlock = nextBlock;
+			if (currentBlock->fullSize >= neededSize && !currentBlock->isInUse)
 			{
-				traverseTemp->userSize = chunkSize;
-				traverseTemp->isInUse = true;
-				traverseTemp->userStart = reinterpret_cast<char*>(traverseTemp) + sizeof(MemBlockDesc);
-				return traverseTemp->userStart;
+				currentBlock->userSize = chunkSize;
+				currentBlock->isInUse = true;
+				currentBlock->userStart = reinterpret_cast<char*>(currentBlock) + sizeof(MemBlockDesc);
+				return currentBlock->userStart;
 			}
-			tempTraverseTemp = traverseTemp->next;
-		} while (traverseTemp->next != nullptr);
-		//first hand memory
+			nextBlock = currentBlock->next;
+		} while (currentBlock->next != nullptr);
+		//first hand memory (currentBlock is now the last block in the list)
 		if ((heapManager->endOfHeap - heapManager->currentPosOfHeap) >= neededSize)
 		{
-			tempTraverseTemp = reinterpret_cast<MemBlockDesc*>(heapManager->currentPosOfHeap);
-			traverseTemp->next = tempTraverseTemp;
-			tempTraverseTemp->userSize = chunkSize;
-			tempTraverseTemp->fullSize = neededSize;
-			tempTraverseTemp->isInUse = true;
-			tempTraverseTemp->userStart = heapManager->currentPosOfHeap + sizeof(MemBlockDesc);
-			tempTraverseTemp->next = nullptr;
-			heapManager->currentPosOfHeap += tempTraverseTemp->fullSize;
-			return tempTraverseTemp->userStart;
+			MemBlockDesc* newBlock = reinterpret_cast<MemBlockDesc*>(heapManager->currentPosOfHeap);
+			currentBlock->next = newBlock;
+			newBlock->userSize = chunkSize;
+			newBlock->fullSize = neededSize;
+			newBlock->isInUse = true;
+			newBlock->userStart = heapManager->currentPosOfHeap + sizeof(MemBlockDesc);
+			newBlock->next = nullptr;
+			heapManager->currentPosOfHeap += newBlock->fullSize;
+			return newBlock->userStart;
 		}
 		return nullptr;
 	}
@@ -73,44 +73,44 @@ void* HeapManager::myAlloc(size_t chunkSize)
 
 bool HeapManager::myFree(void* pPtr)
 {
-	MemBlockDesc* traverseTemp = head->next;
-	MemBlockDesc* tempTraverseTemp = head->next;
+	MemBlockDesc* currentBlock = head->next;
+	MemBlockDesc* nextBlock = head->next;
 	do
 	{
-		traverseTemp = tempTraverseTemp;
-		if ((reinterpret_cast<MemBlockDesc*>(reinterpret_cast<char*>(pPtr) - sizeof(MemBlockDesc)) == traverseTemp) && traverseTemp->isInUse == true)
+		currentBlock = nextBlock;
+		if ((reinterpret_cast<MemBlockDesc*>(reinterpret_cast<char*>(pPtr) - sizeof(MemBlockDesc)) == currentBlock) && currentBlock->isInUse == true)
 		{
-			traverseTemp->isInUse = false;
+			currentBlock->isInUse = false;
 			return true;
 		}
-		tempTraverseTemp = traverseTemp->next;
-	} while (traverseTemp->next != nullptr);
+		nextBlock = currentBlock->next;
+	} while (currentBlock->next != nullptr);
 	return false;
 }
 
 void  HeapManager::myCollect()
 {
-	MemBlockDesc* traverseTemp = head->next;
-	MemBlockDesc* tempTraverseTemp = head->next;
-	MemBlockDesc* tempTraverseTemp2;
-	while (traverseTemp->next != nullptr)
+	MemBlockDesc* currentBlock = head->next;
+	MemBlockDesc* nextBlock = head->next;
+	MemBlockDesc* adjacentBlock;
+	while (currentBlock->next != nullptr)
 	{
 		do
 		{
-			traverseTemp = tempTraverseTemp;
-			tempTraverseTemp2 = reinterpret_cast<MemBlockDesc*>(reinterpret_cast<char*>(traverseTemp) + traverseTemp->fullSize);
-			if (tempTraverseTemp2 == traverseTemp->next && traverseTemp->isInUse == false && traverseTemp->next->isInUse == false)
+			currentBlock = nextBlock;
+			adjacentBlock = reinterpret_cast<MemBlockDesc*>(reinterpret_cast<char*>(currentBlock) + currentBlock->fullSize);
+			if (adjacentBlock == currentBlock->next && currentBlock->isInUse == false && currentBlock->next->isInUse == false)
 			{
-				traverseTemp->fullSize += traverseTemp->next->fullSize;
-				traverseTemp->next = traverseTemp->next->next;
+				currentBlock->fullSize += currentBlock->next->fullSize;
+				currentBlock->next = currentBlock->next->next;
 			}
-			tempTraverseTemp = traverseTemp->next;
-		} while (traverseTemp->next != nullptr);
-		traverseTemp = head->next;
-		tempTraverseTemp = head->next;
+			nextBlock = currentBlock->next;
+		} while (currentBlock->next != nullptr);
+		currentBlock = head->next;
+		nextBlock = head->next;
 	}
-	traverseTemp = head->next;
-	if (traverseTemp->next == nullptr)
+	currentBlock = head->next;
+	if (currentBlock->next == nullptr)
 	{
 		memoryList = nullptr;
 		currentPosOfHeap = startOfHeap;
