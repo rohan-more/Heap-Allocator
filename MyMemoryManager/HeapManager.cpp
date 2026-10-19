@@ -139,7 +139,7 @@ void  HeapManager::Coalesce()
 
 	// Only one block left: treat the heap as empty again
 	currentBlock = head->next;
-	if (currentBlock->next == nullptr)
+	if (currentBlock->next == nullptr && !currentBlock->isInUse)
 	{
 		memoryList = nullptr;
 		currentPosOfHeap = startOfHeap;
