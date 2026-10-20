@@ -152,5 +152,6 @@ void HeapManager::Destroy()
 	{
 		delete HeapManager::heapManager;
 		HeapManager::heapManager = nullptr;
+		memoryList = nullptr;
 	}
 }
