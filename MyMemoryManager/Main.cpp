@@ -10,13 +10,54 @@
 #include"ConsolePrint.h"
 #include"HeapManager.h"
 
+constexpr size_t sizeHeap = 1024 * 1024;
+
+void AllocateRandomBlocks(HeapManager& heap, unsigned int count, size_t maxSize, std::vector<void*>& outAddresses)
+{
+	unsigned int totalAllocations = 0;
+	long sizeAllocations = 0;
+	for (unsigned int i = 0; i < count; i++)
+	{
+		size_t sizeAlloc = static_cast<size_t>(rand()) % (maxSize + 1);
+		void* pPtr = heap.Allocate(sizeAlloc);
+		DEBUG_PRINT("The memory allocated is: %p , %d \n", pPtr, sizeAlloc);
+		if (pPtr == nullptr)
+		{
+			break;
+		}
+		outAddresses.push_back(pPtr);
+		sizeAllocations += sizeAlloc;
+		totalAllocations++;
+	}
+	DEBUG_PRINT("Made %d allocations totaling %ld from heap of %d\n", totalAllocations, sizeAllocations, sizeHeap);
+}
+
+void FreeAllInRandomOrder(HeapManager& heap, std::vector<void*>& allocatedAddresses)
+{
+	if (!allocatedAddresses.empty())
+	{
+		// randomize the addresses
+		std::random_shuffle(allocatedAddresses.begin(), allocatedAddresses.end());
+
+		// return them back to the heap manager
+		while (!allocatedAddresses.empty())
+		{
+			void* pPtr = allocatedAddresses.back();
+			if (heap.Free(pPtr))
+			{
+				DEBUG_PRINT("The memory at %p has been freed\n", pPtr);
+			}
+			allocatedAddresses.pop_back();
+		}
+	}
+}
+
 int main()
 {
 	// Report memory leaks in the Output window when the program exits (Debug builds only)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	srand(time(NULL));
 	// allocate some memory for this heap
-	const size_t sizeHeap = 1024 * 1024;
 	void * pHeapMemory = _aligned_malloc(sizeHeap, 16);
 	assert(pHeapMemory);
 
@@ -26,91 +67,18 @@ int main()
 
 	std::vector<void *> allocatedAddresses;
 
-	unsigned int numberOfAllocations = 4;
-
-	bool done = false;
-
-	unsigned int totalAllocations = 0;
-	long sizeAllocations = 0;
 	////////////////////////////   UNIT TEST FOR FIRST HAND ALLOC AND FREE   ////////////////////////////
 	// allocate memory of random sizes up to 1024 bytes from the heap manager
 	// until it runs out of memory
-	do
-	{
-		size_t sizeAlloc = static_cast<size_t>(rand() & 1023);// max allocation = 1024;
-		void * pPtr = pHeapManager->Allocate(sizeAlloc);
-		DEBUG_PRINT("The memory allocated is: %p , %d \n", pPtr,sizeAlloc);
-		numberOfAllocations--;
-		if (pPtr)
-		{
-			allocatedAddresses.push_back(pPtr);
-			sizeAllocations += sizeAlloc;
-			totalAllocations++;
-		}
-		else
-		{
-			done = true;
-		}
-	} while (!done && numberOfAllocations);
-	DEBUG_PRINT("Made %d allocations totaling %ld from heap of %d\n", totalAllocations, sizeAllocations, sizeHeap);
+	AllocateRandomBlocks(*pHeapManager, 4, 1023, allocatedAddresses);
+	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses);
 
-	if (!allocatedAddresses.empty())
-	{
-		// randomize the addresses
-		std::random_shuffle(allocatedAddresses.begin(), allocatedAddresses.end());
-
-		// return them back to the heap manager
-		while (!allocatedAddresses.empty())
-		{
-			void * pPtr = allocatedAddresses.back();
-			if (pHeapManager->Free(pPtr))
-			{
-				DEBUG_PRINT("The memory at %p has been freed\n", pPtr);
-			}
-			allocatedAddresses.pop_back();
-		}
-	}
 	////////////////////////////   UNIT TEST FOR SECOND HAND ALLOC AND FREE   ////////////////////////////
 	// allocate memory of random sizes up to 1024 bytes from the heap manager
 	// until it runs out of memory
-	numberOfAllocations = 6;
-	sizeAllocations = 0;
-	totalAllocations = 0;
-	do
-	{
-		size_t sizeAlloc = static_cast<size_t>(rand() & 4095);// max allocation = 4096;
-		void * pPtr = pHeapManager->Allocate(sizeAlloc);
-		DEBUG_PRINT("The memory allocated is: %p , %d \n", pPtr, sizeAlloc);
-		numberOfAllocations--;
-		if (pPtr)
-		{
-			allocatedAddresses.push_back(pPtr);
-			sizeAllocations += sizeAlloc;
-			totalAllocations++;
-		}
-		else
-		{
-			done = true;
-		}
-	} while (!done && numberOfAllocations);
-	DEBUG_PRINT("Made %d allocations totaling %ld from heap of %d\n", totalAllocations, sizeAllocations, sizeHeap);
+	AllocateRandomBlocks(*pHeapManager, 6, 4095, allocatedAddresses);
+	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses);
 
-	if (!allocatedAddresses.empty())
-	{
-		// randomize the addresses
-		std::random_shuffle(allocatedAddresses.begin(), allocatedAddresses.end());
-
-		// return them back to the heap manager
-		while (!allocatedAddresses.empty())
-		{
-			void * pPtr = allocatedAddresses.back();
-			if (pHeapManager->Free(pPtr))
-			{
-				DEBUG_PRINT("The memory at %p has been freed\n", pPtr);
-			}
-			allocatedAddresses.pop_back();
-		}
-	}
 	////////////////////////////   UNIT TEST TO CHECK FREE ONLY FREES ALLOCATED MEMORY   ////////////////////////////
 	if (!pHeapManager->Free(reinterpret_cast<void *> (rand())))
 	{
