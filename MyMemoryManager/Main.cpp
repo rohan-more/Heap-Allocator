@@ -15,12 +15,12 @@ constexpr size_t sizeHeap = 1024 * 1024;
 void AllocateRandomBlocks(HeapManager& heap, unsigned int count, size_t maxSize, std::vector<void*>& outAddresses)
 {
 	unsigned int totalAllocations = 0;
-	long sizeAllocations = 0;
+	size_t sizeAllocations = 0;
 	for (unsigned int i = 0; i < count; i++)
 	{
 		size_t sizeAlloc = static_cast<size_t>(rand()) % (maxSize + 1);
 		void* pPtr = heap.Allocate(sizeAlloc);
-		DEBUG_PRINT("The memory allocated is: %p , %d \n", pPtr, sizeAlloc);
+		DEBUG_PRINT("The memory allocated is: %p , %zu \n", pPtr, sizeAlloc);
 		if (pPtr == nullptr)
 		{
 			break;
@@ -29,7 +29,7 @@ void AllocateRandomBlocks(HeapManager& heap, unsigned int count, size_t maxSize,
 		sizeAllocations += sizeAlloc;
 		totalAllocations++;
 	}
-	DEBUG_PRINT("Made %d allocations totaling %ld from heap of %d\n", totalAllocations, sizeAllocations, sizeHeap);
+	DEBUG_PRINT("Made %u allocations totaling %zu bytes from heap of %zu\n", totalAllocations, sizeAllocations, sizeHeap);
 }
 
 void FreeAllInRandomOrder(HeapManager& heap, std::vector<void*>& allocatedAddresses)
