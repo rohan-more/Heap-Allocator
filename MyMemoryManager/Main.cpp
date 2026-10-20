@@ -5,7 +5,6 @@
 #include<cstdlib>
 #include<crtdbg.h>
 #include<cassert>
-#include<ctime>
 #include<vector>
 #include<algorithm>
 #include"ConsolePrint.h"
@@ -37,12 +36,12 @@ void AllocateRandomBlocks(HeapManager& heap, unsigned int count, size_t maxSize,
 
 // Frees every pointer in allocatedAddresses in a random order and empties the vector.
 // Random order leaves gaps in the heap, like a real program would.
-void FreeAllInRandomOrder(HeapManager& heap, std::vector<void*>& allocatedAddresses)
+void FreeAllInRandomOrder(HeapManager& heap, std::vector<void*>& allocatedAddresses, std::mt19937& rng)
 {
 	if (!allocatedAddresses.empty())
 	{
 		// randomize the addresses
-		std::shuffle(allocatedAddresses.begin(), allocatedAddresses.end(), std::mt19937(std::random_device()()));
+		std::shuffle(allocatedAddresses.begin(), allocatedAddresses.end(), rng);
 
 		// return them back to the heap manager
 		while (!allocatedAddresses.empty())
@@ -61,7 +60,7 @@ int main()
 {
 	// Report memory leaks in the Output window when the program exits (Debug builds only)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-	std::mt19937 rng(time(NULL));
+	std::mt19937 rng(std::random_device{}());
 	// allocate the memory the heap manager will manage (freed with _aligned_free, not free)
 	void * pHeapMemory = _aligned_malloc(sizeHeap, 16);
 	assert(pHeapMemory);
@@ -75,12 +74,12 @@ int main()
 	////////////////////////////   UNIT TEST FOR FIRST HAND ALLOC AND FREE   ////////////////////////////
 	// 4 allocations of up to 1023 bytes from fresh memory, then free them all in random order
 	AllocateRandomBlocks(*pHeapManager, 4, 1023, allocatedAddresses, rng);
-	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses);
+	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng);
 
 	////////////////////////////   UNIT TEST FOR SECOND HAND ALLOC AND FREE   ////////////////////////////
 	// 6 allocations of up to 4095 bytes; any that fit in a block freed above reuse it
 	AllocateRandomBlocks(*pHeapManager, 6, 4095, allocatedAddresses, rng);
-	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses);
+	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng);
 
 	////////////////////////////   UNIT TEST TO CHECK FREE ONLY FREES ALLOCATED MEMORY   ////////////////////////////
 	// a small random number is never a valid block address, so Free should reject it
