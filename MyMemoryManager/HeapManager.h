@@ -19,6 +19,8 @@ public:
 	// Merges neighbouring free blocks so larger allocations can fit again.
 	void Coalesce();
 
+	static void Destroy();
+
 private:
 	// Header stored in the heap directly before each block of user memory
 	typedef struct MemBlockDescriptor

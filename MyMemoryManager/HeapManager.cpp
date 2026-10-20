@@ -145,3 +145,12 @@ void  HeapManager::Coalesce()
 		currentPosOfHeap = startOfHeap;
 	}
 }
+
+void HeapManager::Destroy()
+{
+	if (HeapManager::heapManager != nullptr)
+	{
+		delete HeapManager::heapManager;
+		HeapManager::heapManager = nullptr;
+	}
+}

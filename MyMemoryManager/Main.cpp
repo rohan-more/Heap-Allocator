@@ -94,6 +94,7 @@ int main()
 	pHeapManager->Coalesce();
 	void * pPtr = pHeapManager->Allocate(1024 * 1024 - 8192);
 	DEBUG_PRINT("The memory allocated is: %p  \n", pPtr);
+	HeapManager::Destroy();
 	_aligned_free(pHeapMemory);
 	return 0;
 }
