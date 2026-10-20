@@ -1,6 +1,7 @@
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC	// must come before any standard header so leak reports show file and line
 #endif
+#include <random>
 #include<cstdlib>
 #include<crtdbg.h>
 #include<cassert>
@@ -14,13 +15,13 @@ constexpr size_t sizeHeap = 1024 * 1024;	// 1 MB test heap
 
 // Makes up to count allocations of random sizes (0 to maxSize bytes) and appends
 // the returned pointers to outAddresses. Stops early if the heap runs out of memory.
-void AllocateRandomBlocks(HeapManager& heap, unsigned int count, size_t maxSize, std::vector<void*>& outAddresses)
+void AllocateRandomBlocks(HeapManager& heap, unsigned int count, size_t maxSize, std::vector<void*>& outAddresses, std::mt19937& rng)
 {
 	unsigned int totalAllocations = 0;
 	size_t sizeAllocations = 0;
 	for (unsigned int i = 0; i < count; i++)
 	{
-		size_t sizeAlloc = static_cast<size_t>(rand()) % (maxSize + 1);
+		size_t sizeAlloc = static_cast<size_t>(rng()) % (maxSize + 1);
 		void* pPtr = heap.Allocate(sizeAlloc);
 		DEBUG_PRINT("The memory allocated is: %p , %zu \n", pPtr, sizeAlloc);
 		if (pPtr == nullptr)
@@ -41,11 +42,11 @@ void FreeAllInRandomOrder(HeapManager& heap, std::vector<void*>& allocatedAddres
 	if (!allocatedAddresses.empty())
 	{
 		// randomize the addresses
-		std::random_shuffle(allocatedAddresses.begin(), allocatedAddresses.end());
+		std::shuffle(allocatedAddresses.begin(), allocatedAddresses.end(), std::mt19937(std::random_device()()));
 
 		// return them back to the heap manager
 		while (!allocatedAddresses.empty())
-		{
+		{	
 			void* pPtr = allocatedAddresses.back();
 			if (heap.Free(pPtr))
 			{
@@ -60,7 +61,7 @@ int main()
 {
 	// Report memory leaks in the Output window when the program exits (Debug builds only)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-	srand(time(NULL));
+	std::mt19937 rng(time(NULL));
 	// allocate the memory the heap manager will manage (freed with _aligned_free, not free)
 	void * pHeapMemory = _aligned_malloc(sizeHeap, 16);
 	assert(pHeapMemory);
@@ -73,17 +74,17 @@ int main()
 
 	////////////////////////////   UNIT TEST FOR FIRST HAND ALLOC AND FREE   ////////////////////////////
 	// 4 allocations of up to 1023 bytes from fresh memory, then free them all in random order
-	AllocateRandomBlocks(*pHeapManager, 4, 1023, allocatedAddresses);
+	AllocateRandomBlocks(*pHeapManager, 4, 1023, allocatedAddresses, rng);
 	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses);
 
 	////////////////////////////   UNIT TEST FOR SECOND HAND ALLOC AND FREE   ////////////////////////////
 	// 6 allocations of up to 4095 bytes; any that fit in a block freed above reuse it
-	AllocateRandomBlocks(*pHeapManager, 6, 4095, allocatedAddresses);
+	AllocateRandomBlocks(*pHeapManager, 6, 4095, allocatedAddresses, rng);
 	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses);
 
 	////////////////////////////   UNIT TEST TO CHECK FREE ONLY FREES ALLOCATED MEMORY   ////////////////////////////
 	// a small random number is never a valid block address, so Free should reject it
-	if (!pHeapManager->Free(reinterpret_cast<void *> (rand())))
+	if (!pHeapManager->Free(reinterpret_cast<void *> (rng())))
 	{
 		DEBUG_PRINT("The memory you tried to free is not valid\n");
 	}
