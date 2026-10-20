@@ -1,20 +1,19 @@
+#ifdef _DEBUG
+#define _CRTDBG_MAP_ALLOC	// must come before any standard header so leak reports show file and line
+#endif
+#include<cstdlib>
+#include<crtdbg.h>
 #include<cassert>
 #include<ctime>
 #include<vector>
 #include<algorithm>
-#if defined _DEBUG
-#define _CRTDEBUG_MAP_ALLOC
-#include<cstdlib>
-#include<crtdbg.h>
-#else
-#include<cstdlib>
-#endif //_DEBUG
-#include"Assert.h"
 #include"ConsolePrint.h"
 #include"HeapManager.h"
 
 int main()
 {
+	// Report memory leaks in the Output window when the program exits (Debug builds only)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	srand(time(NULL));
 	// allocate some memory for this heap
 	const size_t sizeHeap = 1024 * 1024;
