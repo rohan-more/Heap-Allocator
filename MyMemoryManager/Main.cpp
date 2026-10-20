@@ -13,7 +13,7 @@
 #include"ConsolePrint.h"
 #include"HeapManager.h"
 
-void main(int argc, char **argv)
+int main()
 {
 	srand(time(NULL));
 	// allocate some memory for this heap
@@ -122,4 +122,5 @@ void main(int argc, char **argv)
 	void * pPtr = pHeapManager->Allocate(1024 * 1024 - 8192);
 	DEBUG_PRINT("The memory allocated is: %p  \n", pPtr);
 	_aligned_free(pHeapMemory);
+	return 0;
 }
