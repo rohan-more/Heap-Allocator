@@ -4,7 +4,7 @@
 HeapManager* HeapManager::heapManager = nullptr;
 HeapManager::MemBlockDesc* HeapManager::memoryList = nullptr;
 // Dummy node: only head->next is used, and it always points at the start of the heap buffer.
-HeapManager::MemBlockDesc* HeapManager::head = reinterpret_cast<MemBlockDesc*>(malloc(sizeof(HeapManager::MemBlockDesc)));
+HeapManager::MemBlockDesc HeapManager::head = { 0, 0, nullptr, nullptr, false };
 
 // Creates the single HeapManager instance on first call; later calls return the same instance.
 HeapManager* HeapManager::Create(void* heapMemory, size_t sizeHeap)
@@ -16,7 +16,7 @@ HeapManager* HeapManager::Create(void* heapMemory, size_t sizeHeap)
 		heapManager->currentPosOfHeap = heapManager->startOfHeap;
 		heapManager->endOfHeap = reinterpret_cast<char*>(heapMemory) + sizeHeap;	// one past the end
 		// The first block will be placed at the very start of the buffer (not written until the first Allocate).
-		head->next = reinterpret_cast<MemBlockDesc*>(heapMemory);
+		head.next = reinterpret_cast<MemBlockDesc*>(heapMemory);
 		return heapManager;
 	}
 	else
@@ -30,15 +30,15 @@ HeapManager* HeapManager::Create(void* heapMemory, size_t sizeHeap)
 // otherwise carve a new block from the unused memory at the end of the heap.
 void* HeapManager::Allocate(size_t chunkSize)
 {
-	MemBlockDesc* currentBlock = head->next;
-	MemBlockDesc* nextBlock = head->next;
+	MemBlockDesc* currentBlock = head.next;
+	MemBlockDesc* nextBlock = head.next;
 	// Header + user data, rounded up to a multiple of 4 bytes
 	size_t neededSize = ROUND_UP(sizeof(MemBlockDesc) + chunkSize, 4);
 
 	// Case 1: the heap is empty, so this becomes the first block in the list
 	if (memoryList == nullptr && (heapManager->endOfHeap - heapManager->currentPosOfHeap) >= neededSize)
 	{
-		memoryList = head->next;
+		memoryList = head.next;
 		memoryList->userSize = chunkSize;
 		memoryList->fullSize = neededSize;
 		memoryList->isInUse = true;
@@ -89,8 +89,8 @@ void* HeapManager::Allocate(size_t chunkSize)
 // (invalid pointer or double free). Free blocks are not merged here; call Coalesce for that.
 bool HeapManager::Free(void* pPtr)
 {
-	MemBlockDesc* currentBlock = head->next;
-	MemBlockDesc* nextBlock = head->next;
+	MemBlockDesc* currentBlock = head.next;
+	MemBlockDesc* nextBlock = head.next;
 	do
 	{
 		currentBlock = nextBlock;
@@ -110,8 +110,8 @@ bool HeapManager::Free(void* pPtr)
 // If everything merges into a single block, the heap is reset to empty.
 void  HeapManager::Coalesce()
 {
-	MemBlockDesc* currentBlock = head->next;
-	MemBlockDesc* nextBlock = head->next;
+	MemBlockDesc* currentBlock = head.next;
+	MemBlockDesc* nextBlock = head.next;
 	MemBlockDesc* adjacentBlock;
 	bool mergedAny = true;
 	// Repeat passes over the list, because one pass can miss merges
@@ -133,12 +133,12 @@ void  HeapManager::Coalesce()
 			}
 			nextBlock = currentBlock->next;
 		} while (currentBlock->next != nullptr);
-		currentBlock = head->next;
-		nextBlock = head->next;
+		currentBlock = head.next;
+		nextBlock = head.next;
 	}
 
 	// Only one block left: treat the heap as empty again
-	currentBlock = head->next;
+	currentBlock = head.next;
 	if (currentBlock->next == nullptr && !currentBlock->isInUse)
 	{
 		memoryList = nullptr;

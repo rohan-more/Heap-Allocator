@@ -39,6 +39,6 @@ private:
 
 	//MemBlockDesc * temp;
 	static MemBlockDesc * memoryList;	// first block, or nullptr when the heap is empty
-	static MemBlockDesc * head;			// dummy node; head->next points at the first block
+	static MemBlockDesc  head;			// dummy node; head->next points at the first block
 	static HeapManager * heapManager;	// the single instance
 };
