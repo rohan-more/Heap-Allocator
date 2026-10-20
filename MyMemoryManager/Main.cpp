@@ -17,7 +17,7 @@ int main()
 	srand(time(NULL));
 	// allocate some memory for this heap
 	const size_t sizeHeap = 1024 * 1024;
-	void * pHeapMemory = _aligned_malloc(sizeHeap, 4);
+	void * pHeapMemory = _aligned_malloc(sizeHeap, 16);
 	assert(pHeapMemory);
 
 	// create a HeapManager instance
