@@ -60,6 +60,8 @@ int main()
 {
 	// Report memory leaks in the Output window when the program exits (Debug builds only)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	// One random engine shared by every test. Replace the seed with a fixed number
+	// (e.g. rng(42)) to repeat exactly the same run when debugging a failure.
 	std::mt19937 rng(std::random_device{}());
 	// allocate the memory the heap manager will manage (freed with _aligned_free, not free)
 	void * pHeapMemory = _aligned_malloc(sizeHeap, 16);
@@ -82,7 +84,7 @@ int main()
 	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng);
 
 	////////////////////////////   UNIT TEST TO CHECK FREE ONLY FREES ALLOCATED MEMORY   ////////////////////////////
-	// a small random number is never a valid block address, so Free should reject it
+	// every block has been freed at this point, so Free must reject any address
 	if (!pHeapManager->Free(reinterpret_cast<void *> (rng())))
 	{
 		DEBUG_PRINT("The memory you tried to free is not valid\n");
@@ -93,6 +95,7 @@ int main()
 	pHeapManager->Coalesce();
 	void * pPtr = pHeapManager->Allocate(1024 * 1024 - 8192);
 	DEBUG_PRINT("The memory allocated is: %p  \n", pPtr);
+	// destroy the manager before freeing the memory it manages
 	HeapManager::Destroy();
 	_aligned_free(pHeapMemory);
 	return 0;

@@ -3,7 +3,8 @@
 
 HeapManager* HeapManager::heapManager = nullptr;
 HeapManager::MemBlockDesc* HeapManager::memoryList = nullptr;
-// Dummy node: only head->next is used, and it always points at the start of the heap buffer.
+// Dummy node: only head.next is used, and it always points at the start of the heap buffer.
+// A plain static object rather than a heap allocation, so there is nothing to free.
 HeapManager::MemBlockDesc HeapManager::head = { 0, 0, nullptr, nullptr, false };
 
 // Creates the single HeapManager instance on first call; later calls return the same instance.
@@ -146,6 +147,8 @@ void  HeapManager::Coalesce()
 	}
 }
 
+// Deletes the singleton instance and clears the static list state, so a later Create
+// starts from an empty heap. The heap memory itself belongs to the caller.
 void HeapManager::Destroy()
 {
 	if (HeapManager::heapManager != nullptr)

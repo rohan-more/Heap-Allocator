@@ -19,6 +19,7 @@ public:
 	// Merges neighbouring free blocks so larger allocations can fit again.
 	void Coalesce();
 
+	// Deletes the instance so Create can be called again. Call before freeing the heap memory.
 	static void Destroy();
 
 private:
@@ -41,6 +42,6 @@ private:
 
 	//MemBlockDesc * temp;
 	static MemBlockDesc * memoryList;	// first block, or nullptr when the heap is empty
-	static MemBlockDesc  head;			// dummy node; head->next points at the first block
+	static MemBlockDesc  head;			// dummy node; head.next points at the first block
 	static HeapManager * heapManager;	// the single instance
 };
