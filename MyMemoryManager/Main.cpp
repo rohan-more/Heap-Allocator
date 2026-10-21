@@ -141,6 +141,31 @@ int main()
 	Check(pBig != nullptr, "A near-full-heap allocation succeeds");
 	Check(pHeapManager->Free(pBig), "The large block is freed");
 
+	////////////////////////////   TEST 5: COALESCE WITH BLOCKS IN USE   ////////////////////////////
+	// Regression tests for the two Coalesce bugs, each on a fresh heap (Destroy + Create)
+	printf("\n=== Test 5: coalesce with blocks still in use ===\n");
+
+	// [A used][B free][C free]: used to loop forever; B and C should merge
+	HeapManager::Destroy();
+	pHeapManager = HeapManager::Create(pHeapMemory, sizeHeap);
+	void* pA = pHeapManager->Allocate(100);
+	void* pB = pHeapManager->Allocate(100);
+	void* pC = pHeapManager->Allocate(100);
+	pHeapManager->Free(pB);
+	pHeapManager->Free(pC);
+	pHeapManager->Coalesce();
+	pHeapManager->PrintHeap();
+	Check(pHeapManager->Allocate(150) == pB, "Free neighbours B and C are merged and reused, with A still in use");
+
+	// [A used] only: used to reset the heap and hand A's memory out again
+	HeapManager::Destroy();
+	pHeapManager = HeapManager::Create(pHeapMemory, sizeHeap);
+	int* pValue = static_cast<int*>(pHeapManager->Allocate(sizeof(int)));
+	*pValue = 1234;
+	pHeapManager->Coalesce();
+	void* pNext = pHeapManager->Allocate(sizeof(int));
+	Check(pNext != pValue && *pValue == 1234, "A single block in use survives Coalesce");
+
 	////////////////////////////   RESULTS   ////////////////////////////
 	printf("\n----------------------------------------\n");
 	printf("Result: %u passed, %u failed\n", s_checksPassed, s_checksFailed);
