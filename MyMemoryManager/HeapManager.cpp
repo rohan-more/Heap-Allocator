@@ -1,4 +1,5 @@
 #include"HeapManager.h"
+#include<cstdio>
 
 
 HeapManager* HeapManager::heapManager = nullptr;
@@ -157,4 +158,24 @@ void HeapManager::Destroy()
 		HeapManager::heapManager = nullptr;
 		memoryList = nullptr;
 	}
+}
+
+// Prints the block list as a heap map. Offsets are measured from the start of the heap,
+// which is easier to read than raw addresses. Walks the list with a single pointer.
+void HeapManager::PrintHeap() const
+{
+	printf("  Heap map:\n");
+	if (memoryList == nullptr)
+	{
+		printf("    (no blocks)\n");	// head.next has not been written yet, so don't walk it
+	}
+	else
+	{
+		for (const MemBlockDesc* block = head.next; block != nullptr; block = block->next)
+		{
+			size_t offset = static_cast<size_t>(reinterpret_cast<const char*>(block) - startOfHeap);
+			printf("    offset %8zu   size %7u   %s\n", offset, block->fullSize, block->isInUse ? "used" : "free");
+		}
+	}
+	printf("    unused at end: %zu bytes\n", static_cast<size_t>(endOfHeap - currentPosOfHeap));
 }

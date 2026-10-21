@@ -22,6 +22,9 @@ public:
 	// Deletes the instance so Create can be called again. Call before freeing the heap memory.
 	static void Destroy();
 
+	// Prints every block (offset from the start of the heap, size, used/free) and the unused space at the end.
+	void PrintHeap() const;
+
 private:
 	// Header stored in the heap directly before each block of user memory
 	typedef struct MemBlockDescriptor
