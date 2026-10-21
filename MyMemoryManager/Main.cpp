@@ -12,8 +12,28 @@
 
 constexpr size_t sizeHeap = 1024 * 1024;	// 1 MB test heap
 
+// Test results, updated by Check
+static unsigned int s_checksPassed = 0;
+static unsigned int s_checksFailed = 0;
+
 // Start of the test heap, so pointers can be printed as offsets instead of raw addresses
 static const char* s_heapStart = nullptr;
+
+// Records one test result: prints [PASS] or [FAIL] with the description and updates
+// s_checksPassed / s_checksFailed.
+void Check(bool condition, const char* description)
+{
+	if (condition)
+	{
+		printf("  [PASS] %s\n", description);
+		s_checksPassed++;
+	}
+	else
+	{
+		printf("  [FAIL] %s\n", description);
+		s_checksFailed++;
+	}
+}
 
 // Returns how far p is from the start of the test heap, in bytes
 size_t OffsetInHeap(const void* p)
@@ -86,24 +106,28 @@ int main()
 	// 4 allocations of up to 1023 bytes from fresh memory, then free them all in random order
 	printf("=== Test 1: fresh allocations (4 x up to 1023 bytes) ===\n");
 	AllocateRandomBlocks(*pHeapManager, 4, 1023, allocatedAddresses, rng);
+	Check(allocatedAddresses.size() == 4, "All 4 allocations succeed");
 	pHeapManager->PrintHeap();
-	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng);
+	Check(FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng) == 4, "All 4 blocks are freed");
 	pHeapManager->PrintHeap();
 
 	////////////////////////////   TEST 2: SECOND HAND ALLOC AND FREE   ////////////////////////////
 	// 6 allocations of up to 4095 bytes; any that fit in a block freed above reuse it
 	printf("\n=== Test 2: reuse freed blocks (6 x up to 4095 bytes) ===\n");
 	AllocateRandomBlocks(*pHeapManager, 6, 4095, allocatedAddresses, rng);
+	Check(allocatedAddresses.size() == 6, "All 6 allocations succeed");
 	pHeapManager->PrintHeap();
-	FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng);
+	Check(FreeAllInRandomOrder(*pHeapManager, allocatedAddresses, rng) == 6, "All 6 blocks are freed");
 
 	////////////////////////////   TEST 3: FREE ONLY FREES ALLOCATED MEMORY   ////////////////////////////
-	// every block has been freed at this point, so Free must reject any address
-	printf("\n=== Test 3: invalid free ===\n");
-	if (!pHeapManager->Free(reinterpret_cast<void *> (rng())))
-	{
-		printf("  Free rejected a random address\n");
-	}
+	printf("\n=== Test 3: invalid frees ===\n");
+	char* pBlock = static_cast<char*>(pHeapManager->Allocate(16));
+	Check(pBlock != nullptr, "Allocate a 16-byte block to test with");
+	Check(!pHeapManager->Free(nullptr), "Free rejects nullptr");
+	Check(!pHeapManager->Free(pBlock + 1), "Free rejects a pointer into the middle of a block");
+	Check(!pHeapManager->Free(reinterpret_cast<void *>(rng())), "Free rejects a random address");
+	Check(pHeapManager->Free(pBlock), "Free accepts the real block");
+	Check(!pHeapManager->Free(pBlock), "Free rejects a double free");
 
 	////////////////////////////   TEST 4: COALESCE   ////////////////////////////
 	// everything is free, so Coalesce merges it back into one block and resets the heap
@@ -114,10 +138,15 @@ int main()
 	printf("  After Coalesce:\n");
 	pHeapManager->PrintHeap();
 	void * pBig = pHeapManager->Allocate(sizeHeap - 8192);
-	printf("  Allocate(%zu) -> %s\n", sizeHeap - 8192, pBig != nullptr ? "ok" : "FAILED");
+	Check(pBig != nullptr, "A near-full-heap allocation succeeds");
+	Check(pHeapManager->Free(pBig), "The large block is freed");
+
+	////////////////////////////   RESULTS   ////////////////////////////
+	printf("\n----------------------------------------\n");
+	printf("Result: %u passed, %u failed\n", s_checksPassed, s_checksFailed);
 
 	// destroy the manager before freeing the memory it manages
 	HeapManager::Destroy();
 	_aligned_free(pHeapMemory);
-	return 0;
+	return s_checksFailed == 0 ? 0 : 1;	// non-zero exit code tells scripts / CI that a test failed
 }
