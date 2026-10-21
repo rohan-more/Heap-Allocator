@@ -1,18 +1,24 @@
 #include"HeapManager.h"
+#include<cstdio>
 
-HeapManager * HeapManager::heapManager = NULL;
-HeapManager::MemBlockDesc * HeapManager::memoryList = NULL;
-HeapManager::MemBlockDesc * HeapManager::head = reinterpret_cast<MemBlockDesc *>(malloc(sizeof(HeapManager::MemBlockDesc)));
 
-HeapManager * HeapManager::Create(void * heapMemory, size_t sizeHeap)
+HeapManager* HeapManager::heapManager = nullptr;
+HeapManager::MemBlockDesc* HeapManager::memoryList = nullptr;
+// Dummy node: only head.next is used, and it always points at the start of the heap buffer.
+// A plain static object rather than a heap allocation, so there is nothing to free.
+HeapManager::MemBlockDesc HeapManager::head = { 0, 0, nullptr, nullptr, false };
+
+// Creates the single HeapManager instance on first call; later calls return the same instance.
+HeapManager* HeapManager::Create(void* heapMemory, size_t sizeHeap)
 {
-	if (heapManager == NULL)
+	if (heapManager == nullptr)
 	{
 		heapManager = new HeapManager();
-		heapManager->startOfHeap = reinterpret_cast<char *>(heapMemory);
+		heapManager->startOfHeap = reinterpret_cast<char*>(heapMemory);
 		heapManager->currentPosOfHeap = heapManager->startOfHeap;
-		heapManager->endOfHeap = reinterpret_cast<char *>(heapMemory)+sizeHeap;
-		head->next = reinterpret_cast<MemBlockDesc *>(heapMemory);
+		heapManager->endOfHeap = reinterpret_cast<char*>(heapMemory) + sizeHeap;	// one past the end
+		// The first block will be placed at the very start of the buffer (not written until the first Allocate).
+		head.next = reinterpret_cast<MemBlockDesc*>(heapMemory);
 		return heapManager;
 	}
 	else
@@ -21,96 +27,155 @@ HeapManager * HeapManager::Create(void * heapMemory, size_t sizeHeap)
 	}
 }
 
-void *  HeapManager::myAlloc(size_t chunkSize)
+// Returns a pointer to chunkSize usable bytes, or nullptr if the heap is full.
+// Strategy: reuse the first free block that is big enough (first fit),
+// otherwise carve a new block from the unused memory at the end of the heap.
+void* HeapManager::Allocate(size_t chunkSize)
 {
-	MemBlockDesc * traverseTemp = head->next;
-	MemBlockDesc * tempTraverseTemp = head->next;
-	if (memoryList == NULL && (heapManager->endOfHeap - heapManager->currentPosOfHeap) >= ROUND_UP(sizeof(MemBlockDesc) + chunkSize, 4))
+	MemBlockDesc* currentBlock = head.next;
+	MemBlockDesc* nextBlock = head.next;
+	// Header + user data, rounded up to a multiple of 4 bytes
+	size_t neededSize = ROUND_UP(sizeof(MemBlockDesc) + chunkSize, 4);
+
+	// Case 1: the heap is empty, so this becomes the first block in the list
+	if (memoryList == nullptr && (heapManager->endOfHeap - heapManager->currentPosOfHeap) >= neededSize)
 	{
-		memoryList = head->next;
+		memoryList = head.next;
 		memoryList->userSize = chunkSize;
-		memoryList->fullSize = ROUND_UP(sizeof(MemBlockDesc) + traverseTemp->userSize, 4);
+		memoryList->fullSize = neededSize;
 		memoryList->isInUse = true;
-		memoryList->next = NULL;
-		memoryList->userStart = reinterpret_cast<char *>(memoryList)+sizeof(MemBlockDesc);
+		memoryList->next = nullptr;
+		memoryList->userStart = reinterpret_cast<char*>(memoryList) + sizeof(MemBlockDesc);	// user data starts right after the header
 		heapManager->currentPosOfHeap += memoryList->fullSize;
 		return memoryList->userStart;
 	}
 	else
 	{
-		//second hand memory	
+		// Case 2: second hand memory - reuse the first freed block that is big enough.
+		// The whole block is reused; it is not split, so any extra space is wasted.
 		do
 		{
-			traverseTemp = tempTraverseTemp;
-			if (traverseTemp->fullSize >= ROUND_UP(sizeof(MemBlockDesc) + chunkSize, 4) && traverseTemp->isInUse == false)
+			currentBlock = nextBlock;
+			if (currentBlock->fullSize >= neededSize && !currentBlock->isInUse)
 			{
-				traverseTemp->userSize = chunkSize;
-				traverseTemp->isInUse = true;
-				traverseTemp->userStart = reinterpret_cast<char *>(traverseTemp)+sizeof(MemBlockDesc);
-				return traverseTemp->userStart;
+				currentBlock->userSize = chunkSize;
+				currentBlock->isInUse = true;
+				currentBlock->userStart = reinterpret_cast<char*>(currentBlock) + sizeof(MemBlockDesc);
+				return currentBlock->userStart;
 			}
-			tempTraverseTemp = traverseTemp->next;
-		} while (traverseTemp->next != NULL);
-		//first hand memory
-		if ((heapManager->endOfHeap - heapManager->currentPosOfHeap) >= ROUND_UP(sizeof(MemBlockDesc) + chunkSize, 4))
+			nextBlock = currentBlock->next;
+		} while (currentBlock->next != nullptr);
+
+		// Case 3: first hand memory - carve a new block from the unused end of the heap
+		// and link it after the last block (currentBlock is now the last block in the list).
+		if ((heapManager->endOfHeap - heapManager->currentPosOfHeap) >= neededSize)
 		{
-			tempTraverseTemp = reinterpret_cast<MemBlockDesc *>(heapManager->currentPosOfHeap);
-			traverseTemp->next = tempTraverseTemp;
-			tempTraverseTemp->userSize = chunkSize;
-			tempTraverseTemp->fullSize = ROUND_UP(sizeof(MemBlockDesc) + tempTraverseTemp->userSize, 4);
-			tempTraverseTemp->isInUse = true;
-			tempTraverseTemp->userStart = heapManager->currentPosOfHeap + sizeof(MemBlockDesc);
-			tempTraverseTemp->next = NULL;
-			heapManager->currentPosOfHeap += tempTraverseTemp->fullSize;
-			return tempTraverseTemp->userStart;
+			MemBlockDesc* newBlock = reinterpret_cast<MemBlockDesc*>(heapManager->currentPosOfHeap);
+			currentBlock->next = newBlock;
+			newBlock->userSize = chunkSize;
+			newBlock->fullSize = neededSize;
+			newBlock->isInUse = true;
+			newBlock->userStart = heapManager->currentPosOfHeap + sizeof(MemBlockDesc);
+			newBlock->next = nullptr;
+			heapManager->currentPosOfHeap += newBlock->fullSize;
+			return newBlock->userStart;
 		}
-		return NULL;
+
+		// Out of memory
+		return nullptr;
 	}
 }
 
 
-bool HeapManager::myFree(void * pPtr)
+// Marks the block owning pPtr as free. Returns false if pPtr is not an allocated block
+// (invalid pointer or double free). Free blocks are not merged here; call Coalesce for that.
+bool HeapManager::Free(void* pPtr)
 {
-	MemBlockDesc * traverseTemp = head->next;
-	MemBlockDesc * tempTraverseTemp = head->next;
+	MemBlockDesc* currentBlock = head.next;
+	MemBlockDesc* nextBlock = head.next;
 	do
 	{
-		traverseTemp = tempTraverseTemp;
-		if ((reinterpret_cast<MemBlockDesc *>(reinterpret_cast<char *>(pPtr)-sizeof(MemBlockDesc)) == traverseTemp) && traverseTemp->isInUse == true)
+		currentBlock = nextBlock;
+		// A block's header sits just before its user data, so step back by one header and compare.
+		// Only addresses are compared; pPtr itself is never read, so a bad pointer is safe.
+		if ((reinterpret_cast<MemBlockDesc*>(reinterpret_cast<char*>(pPtr) - sizeof(MemBlockDesc)) == currentBlock) && currentBlock->isInUse)
 		{
-			traverseTemp->isInUse = false;
+			currentBlock->isInUse = false;
 			return true;
 		}
-		tempTraverseTemp = traverseTemp->next;
-	} while (traverseTemp->next != NULL);
+		nextBlock = currentBlock->next;
+	} while (currentBlock->next != nullptr);
 	return false;
 }
 
-void  HeapManager::myCollect()
+// Merges neighbouring free blocks into larger ones so big allocations can fit again.
+// If everything merges into a single block, the heap is reset to empty.
+void  HeapManager::Coalesce()
 {
-	MemBlockDesc * traverseTemp = head->next;
-	MemBlockDesc * tempTraverseTemp = head->next;
-	MemBlockDesc * tempTraverseTemp2;
-	while (traverseTemp->next != NULL)
-	{	
+	MemBlockDesc* currentBlock = head.next;
+	MemBlockDesc* nextBlock = head.next;
+	MemBlockDesc* adjacentBlock;
+	bool mergedAny = true;
+	// Repeat passes over the list, because one pass can miss merges
+	while (mergedAny)
+	{
+		mergedAny = false;
+		// One pass: merge each free block with the free block directly after it
 		do
 		{
-			traverseTemp = tempTraverseTemp;
-			tempTraverseTemp2 = reinterpret_cast<MemBlockDesc *>(reinterpret_cast<char *>(traverseTemp)+traverseTemp->fullSize);
-			if (tempTraverseTemp2 == traverseTemp->next && traverseTemp->isInUse == false && traverseTemp->next->isInUse == false)
+			currentBlock = nextBlock;
+			// Where the next block should start in memory: this block's address + its size
+			adjacentBlock = reinterpret_cast<MemBlockDesc*>(reinterpret_cast<char*>(currentBlock) + currentBlock->fullSize);
+			if (adjacentBlock == currentBlock->next && !currentBlock->isInUse && !currentBlock->next->isInUse)
 			{
-				traverseTemp->fullSize += traverseTemp->next->fullSize;
-				traverseTemp->next = traverseTemp->next->next;
+				// Absorb the neighbour's space and unlink it from the list
+				currentBlock->fullSize += currentBlock->next->fullSize;
+				currentBlock->next = currentBlock->next->next;
+				mergedAny = true;
 			}
-			tempTraverseTemp = traverseTemp->next;
-		} while (traverseTemp->next != NULL);
-		traverseTemp = head->next;
-		tempTraverseTemp = head->next;
+			nextBlock = currentBlock->next;
+		} while (currentBlock->next != nullptr);
+		currentBlock = head.next;
+		nextBlock = head.next;
 	}
-	traverseTemp = head->next;
-	if (traverseTemp->next == NULL)
+
+	// Only one block left: treat the heap as empty again
+	currentBlock = head.next;
+	if (currentBlock->next == nullptr && !currentBlock->isInUse)
 	{
-		memoryList = NULL;
+		memoryList = nullptr;
 		currentPosOfHeap = startOfHeap;
 	}
+}
+
+// Deletes the singleton instance and clears the static list state, so a later Create
+// starts from an empty heap. The heap memory itself belongs to the caller.
+void HeapManager::Destroy()
+{
+	if (HeapManager::heapManager != nullptr)
+	{
+		delete HeapManager::heapManager;
+		HeapManager::heapManager = nullptr;
+		memoryList = nullptr;
+	}
+}
+
+// Prints the block list as a heap map. Offsets are measured from the start of the heap,
+// which is easier to read than raw addresses. Walks the list with a single pointer.
+void HeapManager::PrintHeap() const
+{
+	printf("  Heap map:\n");
+	if (memoryList == nullptr)
+	{
+		printf("    (no blocks)\n");	// head.next has not been written yet, so don't walk it
+	}
+	else
+	{
+		for (const MemBlockDesc* block = head.next; block != nullptr; block = block->next)
+		{
+			size_t offset = static_cast<size_t>(reinterpret_cast<const char*>(block) - startOfHeap);
+			printf("    offset %8zu   size %7u   %s\n", offset, block->fullSize, block->isInUse ? "used" : "free");
+		}
+	}
+	printf("    unused at end: %zu bytes\n", static_cast<size_t>(endOfHeap - currentPosOfHeap));
 }
