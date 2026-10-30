@@ -21,27 +21,9 @@
     <ClCompile Include="HeapAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Assert.Win32.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ConsolePrint.Win32.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HeapAllocator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Assert.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ConsolePrint.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Target.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Target.Win32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
