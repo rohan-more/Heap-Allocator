@@ -70,7 +70,7 @@ unsigned int FreeAllInRandomOrder(HeapAllocator& heap, std::vector<void*>& alloc
 		// randomize the addresses
 		std::shuffle(allocatedAddresses.begin(), allocatedAddresses.end(), rng);
 
-		// return them back to the heap manager
+		// return them back to the allocator
 		while (!allocatedAddresses.empty())
 		{
 			if (heap.Free(allocatedAddresses.back()))
@@ -96,7 +96,7 @@ void TestCoalesceMergesAroundUsedBlock(void* memory)
 	heap.Coalesce();
 	heap.PrintHeap();
 	Check(heap.Allocate(150) == pB, "Free neighbours B and C are merged and reused, with A still in use");
-}	// heap is destroyed here
+}	// heap is destroyed here, automatically
 
 // [A used] only: used to reset the heap and hand A's memory out again
 void TestCoalesceKeepsSingleUsedBlock(void* memory)
@@ -124,12 +124,12 @@ int main()
 	// One random engine shared by every test. Replace the seed with a fixed number
 	// (e.g. rng(42)) to repeat exactly the same run when debugging a failure.
 	std::mt19937 rng(std::random_device{}());
-	// allocate the memory the heap manager will manage (freed with _aligned_free, not free)
+	// allocate the memory the allocator will manage (freed with _aligned_free, not free)
 	void * pHeapMemory = _aligned_malloc(sizeHeap, 16);
 	assert(pHeapMemory);
 	s_heapStart = static_cast<const char*>(pHeapMemory);
 
-	// create a heap
+	// the heap used by tests 1 to 4
 	HeapAllocator heap(pHeapMemory, sizeHeap);
 
 	std::vector<void *> allocatedAddresses;
@@ -174,7 +174,8 @@ int main()
 	Check(heap.Free(pBig), "The large block is freed");
 
 	////////////////////////////   TEST 5: COALESCE WITH BLOCKS IN USE   ////////////////////////////
-	// Regression tests for the two Coalesce bugs, each on a fresh heap
+	// Regression tests for the two Coalesce bugs. Each function creates its own fresh heap
+	// over the same buffer; the heap from tests 1 to 4 is not used again after this point.
 	printf("\n=== Test 5: coalesce with blocks still in use ===\n");
 	TestCoalesceMergesAroundUsedBlock(pHeapMemory);
 	TestCoalesceKeepsSingleUsedBlock(pHeapMemory);

@@ -1,6 +1,8 @@
 #include"HeapAllocator.h"
 #include<cstdio>
 
+// Sets up an empty heap over the caller's buffer. firstBlock_ starts as nullptr (see the header).
+// Members are initialised in declaration order, so start_ is ready when the others use it.
 HeapAllocator::HeapAllocator(void* memory, std::size_t size)
 	: start_(static_cast<char*>(memory)),
 	  unusedStart_(start_),
@@ -76,7 +78,7 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 // (invalid pointer or double free). Free blocks are not merged here; call Coalesce for that.
 bool HeapAllocator::Free(void* pPtr)
 {
-	if (firstBlock_ == nullptr) return false;
+	if (firstBlock_ == nullptr) return false;	// empty heap: nothing to free
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
 	do
@@ -98,7 +100,7 @@ bool HeapAllocator::Free(void* pPtr)
 // If everything merges into a single block, the heap is reset to empty.
 void  HeapAllocator::Coalesce()
 {
-	if (firstBlock_ == nullptr) return;
+	if (firstBlock_ == nullptr) return;	// empty heap: nothing to merge
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
 	BlockHeader* adjacentBlock;
@@ -126,7 +128,7 @@ void  HeapAllocator::Coalesce()
 		nextBlock = firstBlock_;
 	}
 
-	// Only one block left: treat the heap as empty again
+	// Only one free block left: treat the heap as empty again
 	currentBlock = firstBlock_;
 	if (currentBlock->next == nullptr && !currentBlock->isInUse)
 	{
