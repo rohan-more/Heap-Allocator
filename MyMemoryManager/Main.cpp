@@ -8,7 +8,7 @@
 #include<cassert>
 #include<vector>
 #include<algorithm>
-#include"HeapManager.h"
+#include"HeapAllocator.h"
 
 constexpr size_t sizeHeap = 1024 * 1024;	// 1 MB test heap
 

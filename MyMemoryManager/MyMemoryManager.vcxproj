@@ -85,13 +85,13 @@
   <ItemGroup>
     <ClCompile Include="Assert.Win32.cpp" />
     <ClCompile Include="ConsolePrint.Win32.cpp" />
-    <ClCompile Include="HeapManager.cpp" />
+    <ClCompile Include="HeapAllocator.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Assert.h" />
     <ClInclude Include="ConsolePrint.h" />
-    <ClInclude Include="HeapManager.h" />
+    <ClInclude Include="HeapAllocator.h" />
     <ClInclude Include="Target.h" />
     <ClInclude Include="Target.Win32.h" />
   </ItemGroup>
