@@ -1,0 +1,166 @@
+#include"HeapAllocator.h"
+#include<cstdio>
+#include <cstddef>
+#include <limits>
+// Sets up an empty heap over the caller's buffer. firstBlock_ starts as nullptr (see the header).
+// Skips any bytes needed to align the first block.
+HeapAllocator::HeapAllocator(void* memory, std::size_t size)
+{
+	const auto address = reinterpret_cast<std::uintptr_t>(memory);
+	const std::size_t padding = AlignUp(address, kAlignment) - address;
+	const std::size_t skipped = (padding < size) ? padding : size;	// a tiny buffer ends up with no usable space
+
+	start_ = static_cast<std::byte*>(memory) + skipped;
+	unusedStart_ = start_;
+	end_ = static_cast<std::byte*>(memory) + size;
+}
+
+// Returns a pointer to chunkSize usable bytes, or nullptr if the heap is full.
+// Strategy: reuse the first free block that is big enough (first fit),
+// otherwise carve a new block from the unused memory at the end of the heap.
+void* HeapAllocator::Allocate(size_t chunkSize)
+{
+	// Larger requests would wrap around when the header size is added
+	constexpr std::size_t kMaxRequest = std::numeric_limits<std::size_t>::max() - sizeof(BlockHeader) - (kAlignment - 1);
+	if (chunkSize > kMaxRequest)
+	{
+		return nullptr;
+	}
+	BlockHeader* currentBlock = firstBlock_;
+	BlockHeader* nextBlock = firstBlock_;
+	// Header + user data, rounded up to the alignment
+	size_t neededSize = AlignUp(sizeof(BlockHeader) + chunkSize, kAlignment);
+
+	// Case 1: the heap is empty, so this becomes the first block in the list
+	if (firstBlock_ == nullptr)
+	{
+		if (!CanFit(neededSize))
+		{
+			return nullptr;     // empty heap, but the request doesn't fit
+		}
+		firstBlock_ = reinterpret_cast<BlockHeader*>(unusedStart_);
+		firstBlock_->userSize = chunkSize;
+		firstBlock_->fullSize = neededSize;
+		firstBlock_->isInUse = true;
+		firstBlock_->next = nullptr;
+		unusedStart_ += firstBlock_->fullSize;
+		return UserData(firstBlock_);
+	}
+	else
+	{
+		// Case 2: second hand memory - reuse the first freed block that is big enough.
+		// The whole block is reused; it is not split, so any extra space is wasted.
+		do
+		{
+			currentBlock = nextBlock;
+			if (currentBlock->fullSize >= neededSize && !currentBlock->isInUse)
+			{
+				currentBlock->userSize = chunkSize;
+				currentBlock->isInUse = true;
+				return UserData(currentBlock);
+			}
+			nextBlock = currentBlock->next;
+		} while (currentBlock->next != nullptr);
+
+		// Case 3: first hand memory - carve a new block from the unused end of the heap
+		// and link it after the last block (currentBlock is now the last block in the list).
+		if (CanFit(neededSize))
+		{
+			BlockHeader* newBlock = reinterpret_cast<BlockHeader*>(unusedStart_);
+			currentBlock->next = newBlock;
+			newBlock->userSize = chunkSize;
+			newBlock->fullSize = neededSize;
+			newBlock->isInUse = true;
+			newBlock->next = nullptr;
+			unusedStart_ += newBlock->fullSize;
+			return UserData(newBlock);
+		}
+
+		// Out of memory
+		return nullptr;
+	}
+}
+
+
+// Marks the block owning pPtr as free. Returns false if pPtr is not an allocated block
+// (invalid pointer or double free). Free blocks are not merged here; call Coalesce for that.
+bool HeapAllocator::Free(void* pPtr)
+{
+	if (firstBlock_ == nullptr) return false;	// empty heap: nothing to free
+	BlockHeader* currentBlock = firstBlock_;
+	BlockHeader* nextBlock = firstBlock_;
+	do
+	{
+		currentBlock = nextBlock;
+		// A block's header sits just before its user data, so step back by one header and compare.
+		// Only addresses are compared; pPtr itself is never read, so a bad pointer is safe.
+		if ((reinterpret_cast<BlockHeader*>(reinterpret_cast<char*>(pPtr) - sizeof(BlockHeader)) == currentBlock) && currentBlock->isInUse)
+		{
+			currentBlock->isInUse = false;
+			return true;
+		}
+		nextBlock = currentBlock->next;
+	} while (currentBlock->next != nullptr);
+	return false;
+}
+
+// Merges neighbouring free blocks into larger ones so big allocations can fit again.
+// If everything merges into a single block, the heap is reset to empty.
+void  HeapAllocator::Coalesce()
+{
+	if (firstBlock_ == nullptr) return;	// empty heap: nothing to merge
+	BlockHeader* currentBlock = firstBlock_;
+	BlockHeader* nextBlock = firstBlock_;
+	BlockHeader* adjacentBlock;
+	bool mergedAny = true;
+	// Repeat passes over the list, because one pass can miss merges
+	while (mergedAny)
+	{
+		mergedAny = false;
+		// One pass: merge each free block with the free block directly after it
+		do
+		{
+			currentBlock = nextBlock;
+			// Where the next block should start in memory: this block's address + its size
+			adjacentBlock = reinterpret_cast<BlockHeader*>(reinterpret_cast<char*>(currentBlock) + currentBlock->fullSize);
+			if (adjacentBlock == currentBlock->next && !currentBlock->isInUse && !currentBlock->next->isInUse)
+			{
+				// Absorb the neighbour's space and unlink it from the list
+				currentBlock->fullSize += currentBlock->next->fullSize;
+				currentBlock->next = currentBlock->next->next;
+				mergedAny = true;
+			}
+			nextBlock = currentBlock->next;
+		} while (currentBlock->next != nullptr);
+		currentBlock = firstBlock_;
+		nextBlock = firstBlock_;
+	}
+
+	// Only one free block left: treat the heap as empty again
+	currentBlock = firstBlock_;
+	if (currentBlock->next == nullptr && !currentBlock->isInUse)
+	{
+		firstBlock_ = nullptr;
+		unusedStart_ = start_;
+	}
+}
+
+// Prints the block list as a heap map. Offsets are measured from the start of the heap,
+// which is easier to read than raw addresses. Walks the list with a single pointer.
+void HeapAllocator::PrintHeap() const
+{
+	printf("  Heap map:\n");
+	if (firstBlock_ == nullptr)
+	{
+		printf("    (no blocks)\n");
+	}
+	else
+	{
+		for (const BlockHeader* block = firstBlock_; block != nullptr; block = block->next)
+		{
+			std::size_t offset = static_cast<std::size_t>(reinterpret_cast<const std::byte*>(block) - reinterpret_cast<const std::byte*>(start_));
+			printf("    offset %8zu   size %7zu   %s\n", offset, block->fullSize, block->isInUse ? "used" : "free");
+		}
+	}
+	printf("    unused at end: %7zu bytes\n", static_cast<std::size_t>(end_ - unusedStart_));
+}
