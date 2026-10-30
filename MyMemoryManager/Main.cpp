@@ -8,9 +8,12 @@
 #include<cassert>
 #include<vector>
 #include<algorithm>
+#include<cstdint>
+#include<limits>
 #include"HeapAllocator.h"
 
 constexpr size_t sizeHeap = 1024 * 1024;	// 1 MB test heap
+constexpr size_t alignment = 16;			// every pointer from Allocate must be a multiple of this
 
 // Test results, updated by Check
 static unsigned int s_checksPassed = 0;
@@ -39,6 +42,12 @@ void Check(bool condition, const char* description)
 size_t OffsetInHeap(const void* p)
 {
 	return static_cast<size_t>(static_cast<const char*>(p) - s_heapStart);
+}
+
+// Returns true if p is a non-null pointer on an aligned address
+bool IsAligned(const void* p)
+{
+	return p != nullptr && reinterpret_cast<std::uintptr_t>(p) % alignment == 0;
 }
 
 // Makes up to count allocations of random sizes (0 to maxSize bytes) and appends
@@ -117,6 +126,48 @@ void TestEmptyHeap(void* memory)
 	Check(heap.Allocate(sizeHeap + 1) == nullptr, "An oversized first request returns nullptr");
 }
 
+// Different sizes, so a rounding mistake would push a later block off the alignment
+void TestPointersAreAligned(void* memory)
+{
+	HeapAllocator heap(memory, sizeHeap);
+	bool allAligned = true;
+	for (size_t size : { 1, 7, 15, 16, 17, 100, 1000 })
+	{
+		allAligned = allAligned && IsAligned(heap.Allocate(size));
+	}
+	Check(allAligned, "Pointers are aligned for every request size");
+}
+
+// A buffer starting 3 bytes past an aligned address: the first bytes must be skipped
+void TestMisalignedBuffer(void* memory)
+{
+	HeapAllocator heap(static_cast<char*>(memory) + 3, sizeHeap - 3);
+	Check(IsAligned(heap.Allocate(100)), "A misaligned buffer still gives aligned pointers");
+}
+
+// 3 bytes, all of them before the first aligned address: nothing is usable
+void TestTinyBuffer(void* memory)
+{
+	HeapAllocator heap(static_cast<char*>(memory) + 1, 3);
+	Check(heap.Allocate(1) == nullptr, "A buffer too small to align has no usable space");
+}
+
+// Used to wrap around to a tiny block and return a pointer
+void TestHugeRequest(void* memory)
+{
+	HeapAllocator heap(memory, sizeHeap);
+	Check(heap.Allocate(std::numeric_limits<size_t>::max()) == nullptr, "The largest possible request returns nullptr");
+}
+
+// Zero bytes still gets its own block, like malloc(0) on most platforms
+void TestZeroSizeRequest(void* memory)
+{
+	HeapAllocator heap(memory, sizeHeap);
+	void* pZero = heap.Allocate(0);
+	Check(IsAligned(pZero), "Allocate(0) returns an aligned pointer");
+	Check(heap.Free(pZero), "The pointer from Allocate(0) can be freed");
+}
+
 int main()
 {
 	// Report memory leaks in the Output window when the program exits (Debug builds only)
@@ -157,7 +208,7 @@ int main()
 	Check(pBlock != nullptr, "Allocate a 16-byte block to test with");
 	Check(!heap.Free(nullptr), "Free rejects nullptr");
 	Check(!heap.Free(pBlock + 1), "Free rejects a pointer into the middle of a block");
-	Check(!heap.Free(reinterpret_cast<void *>(rng())), "Free rejects a random address");
+	Check(!heap.Free(reinterpret_cast<void *>(static_cast<std::uintptr_t>(rng()))), "Free rejects a random address");
 	Check(heap.Free(pBlock), "Free accepts the real block");
 	Check(!heap.Free(pBlock), "Free rejects a double free");
 
@@ -183,6 +234,17 @@ int main()
 	////////////////////////////   TEST 6: EMPTY HEAP   ////////////////////////////
 	printf("\n=== Test 6: empty heap ===\n");
 	TestEmptyHeap(pHeapMemory);
+
+	////////////////////////////   TEST 7: ALIGNMENT   ////////////////////////////
+	printf("\n=== Test 7: alignment ===\n");
+	TestPointersAreAligned(pHeapMemory);
+	TestMisalignedBuffer(pHeapMemory);
+	TestTinyBuffer(pHeapMemory);
+
+	////////////////////////////   TEST 8: UNUSUAL REQUEST SIZES   ////////////////////////////
+	printf("\n=== Test 8: unusual request sizes ===\n");
+	TestHugeRequest(pHeapMemory);
+	TestZeroSizeRequest(pHeapMemory);
 
 	////////////////////////////   RESULTS   ////////////////////////////
 	printf("\n----------------------------------------\n");
