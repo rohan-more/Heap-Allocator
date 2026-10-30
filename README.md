@@ -19,9 +19,10 @@ by a small header, and all blocks form a singly linked list in address order:
      └──── next ───────────┘    └──── next ──────┘
 ```
 
-The header (`MemBlockDescriptor`, 20 bytes in a 32-bit build) stores the block's full
-size, the size the caller asked for, the pointer handed to the caller, the next block,
-and whether the block is in use. Block sizes are rounded up to a multiple of 4 bytes.
+The header (`BlockHeader`, 16 bytes in a 32-bit build) stores the block's full
+size, the size the caller asked for, the next block, and whether the block is in use.
+Block sizes are rounded up to a multiple of 16 bytes, so user data is always aligned to
+16 bytes.
 
 - **Allocate** is first fit: it reuses the first free block that is big enough,
   otherwise it carves a new block from the unused end of the heap.
@@ -33,15 +34,16 @@ and whether the block is in use. Block sizes are rounded up to a multiple of 4 b
 ## API
 
 ```cpp
-HeapManager* heap = HeapManager::Create(memory, sizeInBytes);   // manage a caller-provided buffer
+HeapAllocator heap(memory, sizeInBytes);   // manage a caller-provided buffer
 
-void* p = heap->Allocate(64);   // nullptr if there is not enough space
-heap->Free(p);                  // false for invalid pointers or double frees
-heap->Coalesce();               // merge neighbouring free blocks
-heap->PrintHeap();              // print a heap map to the console
-
-HeapManager::Destroy();         // before freeing the buffer
+void* p = heap.Allocate(64);   // nullptr if there is not enough space
+heap.Free(p);                  // false for invalid pointers or double frees
+heap.Coalesce();               // merge neighbouring free blocks
+heap.PrintHeap();              // print a heap map to the console
 ```
+
+Each object is an independent heap and can't be copied. The buffer still belongs to the
+caller and must outlive the object.
 
 ## Building and running
 
@@ -62,13 +64,14 @@ The program exits with code 0 if every check passes and 1 if any check fails.
 
 ## Tests
 
-`Main.cpp` runs five groups of tests on a 1 MB heap:
+`Main.cpp` runs six groups of tests on a 1 MB heap:
 
 1. Fresh allocations, then freeing them in random order
 2. Allocations that can reuse the freed blocks
 3. Invalid frees: `nullptr`, a pointer into the middle of a block, a random address, a double free
 4. `Coalesce` after freeing everything, followed by a near-full-heap allocation
-5. Regression tests for two `Coalesce` bugs, each on a fresh heap
+5. `Coalesce` with blocks still in use: regression tests for the two `Coalesce` bugs
+6. An empty heap: `Free` returns false, and an oversized first request returns `nullptr`
 
 Sample output:
 
@@ -83,14 +86,18 @@ Sample output:
 ...
 === Test 5: coalesce with blocks still in use ===
   Heap map:
-    offset        0   size     120   used
-    offset      120   size     240   free
-    unused at end: 1048216 bytes
+    offset        0   size     128   used
+    offset      128   size     256   free
+    unused at end: 1048192 bytes
   [PASS] Free neighbours B and C are merged and reused, with A still in use
   [PASS] A single block in use survives Coalesce
 
+=== Test 6: empty heap ===
+  [PASS] Free on an empty heap returns false
+  [PASS] An oversized first request returns nullptr
+
 ----------------------------------------
-Result: 14 passed, 0 failed
+Result: 16 passed, 0 failed
 ```
 
 Allocation sizes in tests 1 and 2 are random, so their heap maps differ from run to run.
@@ -109,8 +116,7 @@ before-and-after.
 
 These are planned for the rewrite on the `rewrite/modern-allocator` branch:
 
-- A singleton with static state, so only one heap can exist at a time
-- 32-bit build only, and blocks are aligned to 4 bytes rather than 16
+- 32-bit build only
 - Free blocks are reused whole instead of being split, which wastes space
 - `Free` walks the whole list, so it gets slower as the heap fills up
 - Free blocks are only merged when `Coalesce` is called explicitly
@@ -120,14 +126,12 @@ These are planned for the rewrite on the `rewrite/modern-allocator` branch:
 ```
 MyMemoryManager.sln
 MyMemoryManager/
-  HeapManager.h / .cpp        the allocator
+  HeapAllocator.h / .cpp      the allocator
   Main.cpp                    test program
-  Assert.*, ConsolePrint.*,   engine helper files provided as part of the
-  Target*.h                   university course (see License)
 ```
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The engine helper files (`Assert.h`, `Assert.Win32.cpp`,
-`ConsolePrint.h`, `ConsolePrint.Win32.cpp`, `Target.h`, `Target.Win32.h`) were provided
-as part of the university course and are not covered by this license.
+MIT, see [LICENSE](LICENSE). Older commits, including `v0-2016-original`, also contain
+engine helper files (`Assert.*`, `ConsolePrint.*`, `Target*.h`) that were provided as
+part of the university course. Those files are not covered by this license.
