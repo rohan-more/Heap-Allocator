@@ -19,8 +19,12 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 	size_t neededSize = ROUND_UP(sizeof(BlockHeader) + chunkSize, 4);
 
 	// Case 1: the heap is empty, so this becomes the first block in the list
-	if (firstBlock_ == nullptr && (end_ - unusedStart_) >= neededSize)
+	if (firstBlock_ == nullptr)
 	{
+		if (static_cast<size_t>(end_ - unusedStart_) < neededSize)
+		{
+			return nullptr;     // empty heap, but the request doesn't fit
+		}
 		firstBlock_ = reinterpret_cast<BlockHeader*>(unusedStart_);
 		firstBlock_->userSize = chunkSize;
 		firstBlock_->fullSize = neededSize;
@@ -72,6 +76,7 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 // (invalid pointer or double free). Free blocks are not merged here; call Coalesce for that.
 bool HeapAllocator::Free(void* pPtr)
 {
+	if (firstBlock_ == nullptr) return false;
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
 	do
@@ -93,6 +98,7 @@ bool HeapAllocator::Free(void* pPtr)
 // If everything merges into a single block, the heap is reset to empty.
 void  HeapAllocator::Coalesce()
 {
+	if (firstBlock_ == nullptr) return;
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
 	BlockHeader* adjacentBlock;

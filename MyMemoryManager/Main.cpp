@@ -109,6 +109,14 @@ void TestCoalesceKeepsSingleUsedBlock(void* memory)
 	Check(pNext != pValue && *pValue == 1234, "A single block in use survives Coalesce");
 }
 
+// Using a brand-new heap: the singleton version read uninitialised memory here
+void TestEmptyHeap(void* memory)
+{
+	HeapAllocator heap(memory, sizeHeap);
+	Check(!heap.Free(memory), "Free on an empty heap returns false");
+	Check(heap.Allocate(sizeHeap + 1) == nullptr, "An oversized first request returns nullptr");
+}
+
 int main()
 {
 	// Report memory leaks in the Output window when the program exits (Debug builds only)
@@ -170,6 +178,10 @@ int main()
 	printf("\n=== Test 5: coalesce with blocks still in use ===\n");
 	TestCoalesceMergesAroundUsedBlock(pHeapMemory);
 	TestCoalesceKeepsSingleUsedBlock(pHeapMemory);
+
+	////////////////////////////   TEST 6: EMPTY HEAP   ////////////////////////////
+	printf("\n=== Test 6: empty heap ===\n");
+	TestEmptyHeap(pHeapMemory);
 
 	////////////////////////////   RESULTS   ////////////////////////////
 	printf("\n----------------------------------------\n");
