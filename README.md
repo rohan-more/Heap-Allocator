@@ -19,7 +19,7 @@ by a small header, and all blocks form a singly linked list in address order:
      └──── next ───────────┘    └──── next ──────┘
 ```
 
-The header (`BlockHeader`, 16 bytes in a 32-bit build) stores the block's full
+The header (`BlockHeader`, 32 bytes in a 64-bit build, 16 in 32-bit) stores the block's full
 size, the size the caller asked for, the next block, and whether the block is in use.
 Block sizes are rounded up to a multiple of 16 bytes, so user data is always aligned to
 16 bytes.
@@ -50,21 +50,21 @@ caller and must outlive the object.
 Requires Windows and Visual Studio 2026 (C++ desktop workload, v145 toolset).
 
 1. Open `MyMemoryManager.sln`.
-2. Select **Debug | Win32**.
+2. Select **Debug | x64** (Win32 also works).
 3. Run with **Ctrl+F5**, or **F5** to also get the CRT leak report in the Output window.
 
 From a Developer Command Prompt:
 
 ```
-msbuild MyMemoryManager.sln /p:Configuration=Debug /p:Platform=Win32
-Debug\MyMemoryManager.exe
+msbuild MyMemoryManager.sln /p:Configuration=Debug /p:Platform=x64
+x64\Debug\MyMemoryManager.exe
 ```
 
 The program exits with code 0 if every check passes and 1 if any check fails.
 
 ## Tests
 
-`Main.cpp` runs six groups of tests on a 1 MB heap:
+`Main.cpp` runs eight groups of tests on a 1 MB heap:
 
 1. Fresh allocations, then freeing them in random order
 2. Allocations that can reuse the freed blocks
@@ -72,6 +72,8 @@ The program exits with code 0 if every check passes and 1 if any check fails.
 4. `Coalesce` after freeing everything, followed by a near-full-heap allocation
 5. `Coalesce` with blocks still in use: regression tests for the two `Coalesce` bugs
 6. An empty heap: `Free` returns false, and an oversized first request returns `nullptr`
+7. Alignment: every request size, a misaligned buffer, and a buffer too small to align
+8. Unusual request sizes: the largest possible `size_t`, and zero bytes
 
 Sample output:
 
@@ -86,9 +88,9 @@ Sample output:
 ...
 === Test 5: coalesce with blocks still in use ===
   Heap map:
-    offset        0   size     128   used
-    offset      128   size     256   free
-    unused at end: 1048192 bytes
+    offset        0   size     144   used
+    offset      144   size     288   free
+    unused at end: 1048144 bytes
   [PASS] Free neighbours B and C are merged and reused, with A still in use
   [PASS] A single block in use survives Coalesce
 
@@ -96,8 +98,18 @@ Sample output:
   [PASS] Free on an empty heap returns false
   [PASS] An oversized first request returns nullptr
 
+=== Test 7: alignment ===
+  [PASS] Pointers are aligned for every request size
+  [PASS] A misaligned buffer still gives aligned pointers
+  [PASS] A buffer too small to align has no usable space
+
+=== Test 8: unusual request sizes ===
+  [PASS] The largest possible request returns nullptr
+  [PASS] Allocate(0) returns an aligned pointer
+  [PASS] The pointer from Allocate(0) can be freed
+
 ----------------------------------------
-Result: 16 passed, 0 failed
+Result: 22 passed, 0 failed
 ```
 
 Allocation sizes in tests 1 and 2 are random, so their heap maps differ from run to run.
@@ -116,7 +128,6 @@ before-and-after.
 
 These are planned for the rewrite on the `rewrite/modern-allocator` branch:
 
-- 32-bit build only
 - Free blocks are reused whole instead of being split, which wastes space
 - `Free` walks the whole list, so it gets slower as the heap fills up
 - Free blocks are only merged when `Coalesce` is called explicitly
