@@ -119,14 +119,14 @@ Allocation sizes in tests 1 and 2 are random, so their heap maps differ from run
 | Version | What |
 |---|---|
 | [`v0-2016-original`](https://github.com/rohan-more/Heap-Allocator/tree/v0-2016-original) | The original 2016 university code, unchanged |
-| `main` | The 2026 clean-up: clearer names and comments, two `Coalesce` bugs fixed (an infinite loop, and a heap reset while a block was still in use), two memory leaks fixed, C++17, and a test program with pass/fail checks |
+| `main` | The 2026 clean-up: clearer names and comments, two `Coalesce` bugs fixed (an infinite loop, and a heap reset while a block was still in use), two memory leaks fixed, C++17, and a test program with pass/fail checks. Then the rewrite: a regular class instead of a singleton, 16-byte alignment, overflow checks, and x64 builds |
 
 The clean-up was done in small commits, one change each, so `git log` reads as a
 before-and-after.
 
 ## Known limitations
 
-These are planned for the rewrite on the `rewrite/modern-allocator` branch:
+These are planned next:
 
 - Free blocks are reused whole instead of being split, which wastes space
 - `Free` walks the whole list, so it gets slower as the heap fills up
