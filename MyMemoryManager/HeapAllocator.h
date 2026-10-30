@@ -1,9 +1,12 @@
 #pragma once
 #include <cstdlib>
 #include<cstdint>
-// Round size up / address down to a multiple of align (align must be a power of 2)
-#define ROUND_UP(size,align) ((size + (align - 1)) & (~(align - 1)))
-#define ROUND_DOWN(addr,align) (reinterpret_cast<uintptr_t>(addr) & (~(align - 1)))
+#include <cstddef>
+// Rounds value up to a multiple of alignment (must be a power of 2)
+constexpr std::size_t AlignUp(std::size_t value, std::size_t alignment)
+{
+	return (value + alignment - 1) & ~(alignment - 1);
+}
 
 // A simple first-fit heap allocator that manages a caller-provided block of memory.
 // Each allocation is preceded by a BlockHeader, and all blocks form a singly linked
@@ -33,18 +36,22 @@ public:
 	void PrintHeap() const;
 
 private:
-	// Stored in the heap directly before each block of user memory
+
 	struct BlockHeader
 	{
-		unsigned int fullSize;	// header + user data, rounded up to the alignment
-		unsigned int userSize;	// bytes requested by the caller
-		void* userStart;		// pointer returned to the caller
+		std::size_t fullSize;	// header + user data, rounded up to the alignment
+		std::size_t userSize;	// bytes requested by the caller
 		BlockHeader* next;		// next block in the list (nullptr for the last block)
 		bool isInUse;			// false once the block has been freed
 	};
 
+	// User data starts right after the header
+	static void* UserData(BlockHeader* block) { return block + 1; }
+	// True if size bytes are left in the unused part of the heap
+	bool CanFit(std::size_t size) const { return size <= static_cast<std::size_t>(end_ - unusedStart_); }
+
 	BlockHeader* firstBlock_ = nullptr;	// first block in the list, or nullptr when the heap is empty
-	char* start_;						// first byte of the buffer
-	char* unusedStart_;					// start of memory that has never been handed out
-	char* end_;							// one past the last byte of the buffer
+	std::byte* start_;						// first byte of the buffer
+	std::byte * unusedStart_;					// start of memory that has never been handed out
+	std::byte * end_;							// one past the last byte of the buffer
 };

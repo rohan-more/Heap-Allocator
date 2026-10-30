@@ -1,10 +1,10 @@
 #include"HeapAllocator.h"
 #include<cstdio>
-
+#include <cstddef>
 // Sets up an empty heap over the caller's buffer. firstBlock_ starts as nullptr (see the header).
 // Members are initialised in declaration order, so start_ is ready when the others use it.
 HeapAllocator::HeapAllocator(void* memory, std::size_t size)
-	: start_(static_cast<char*>(memory)),
+	: start_(static_cast<std::byte*>(memory)),
 	  unusedStart_(start_),
 	  end_(start_ + size)
 {
@@ -18,12 +18,12 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
 	// Header + user data, rounded up to a multiple of 4 bytes
-	size_t neededSize = ROUND_UP(sizeof(BlockHeader) + chunkSize, 4);
+	size_t neededSize = AlignUp(sizeof(BlockHeader) + chunkSize, 4);
 
 	// Case 1: the heap is empty, so this becomes the first block in the list
 	if (firstBlock_ == nullptr)
 	{
-		if (static_cast<size_t>(end_ - unusedStart_) < neededSize)
+		if (!CanFit(neededSize))
 		{
 			return nullptr;     // empty heap, but the request doesn't fit
 		}
@@ -32,9 +32,8 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 		firstBlock_->fullSize = neededSize;
 		firstBlock_->isInUse = true;
 		firstBlock_->next = nullptr;
-		firstBlock_->userStart = reinterpret_cast<char*>(firstBlock_) + sizeof(BlockHeader);	// user data starts right after the header
 		unusedStart_ += firstBlock_->fullSize;
-		return firstBlock_->userStart;
+		return UserData(firstBlock_);
 	}
 	else
 	{
@@ -47,25 +46,23 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 			{
 				currentBlock->userSize = chunkSize;
 				currentBlock->isInUse = true;
-				currentBlock->userStart = reinterpret_cast<char*>(currentBlock) + sizeof(BlockHeader);
-				return currentBlock->userStart;
+				return UserData(currentBlock);
 			}
 			nextBlock = currentBlock->next;
 		} while (currentBlock->next != nullptr);
 
 		// Case 3: first hand memory - carve a new block from the unused end of the heap
 		// and link it after the last block (currentBlock is now the last block in the list).
-		if ((end_ - unusedStart_) >= neededSize)
+		if (CanFit(neededSize))
 		{
 			BlockHeader* newBlock = reinterpret_cast<BlockHeader*>(unusedStart_);
 			currentBlock->next = newBlock;
 			newBlock->userSize = chunkSize;
 			newBlock->fullSize = neededSize;
 			newBlock->isInUse = true;
-			newBlock->userStart = unusedStart_ + sizeof(BlockHeader);
 			newBlock->next = nullptr;
 			unusedStart_ += newBlock->fullSize;
-			return newBlock->userStart;
+			return UserData(newBlock);
 		}
 
 		// Out of memory
@@ -150,9 +147,9 @@ void HeapAllocator::PrintHeap() const
 	{
 		for (const BlockHeader* block = firstBlock_; block != nullptr; block = block->next)
 		{
-			size_t offset = static_cast<size_t>(reinterpret_cast<const char*>(block) - start_);
+			std::size_t offset = static_cast<std::size_t>(reinterpret_cast<const std::byte*>(block) - reinterpret_cast<const std::byte*>(start_));
 			printf("    offset %8zu   size %7u   %s\n", offset, block->fullSize, block->isInUse ? "used" : "free");
 		}
 	}
-	printf("    unused at end: %zu bytes\n", static_cast<size_t>(end_ - unusedStart_));
+	printf("    unused at end: %7zu bytes\n", static_cast<std::size_t>(end_ - unusedStart_));
 }
