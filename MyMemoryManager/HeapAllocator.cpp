@@ -159,7 +159,7 @@ void HeapAllocator::PrintHeap() const
 		for (const BlockHeader* block = firstBlock_; block != nullptr; block = block->next)
 		{
 			std::size_t offset = static_cast<std::size_t>(reinterpret_cast<const std::byte*>(block) - reinterpret_cast<const std::byte*>(start_));
-			printf("    offset %8zu   size %7u   %s\n", offset, block->fullSize, block->isInUse ? "used" : "free");
+			printf("    offset %8zu   size %7zu   %s\n", offset, block->fullSize, block->isInUse ? "used" : "free");
 		}
 	}
 	printf("    unused at end: %7zu bytes\n", static_cast<std::size_t>(end_ - unusedStart_));
