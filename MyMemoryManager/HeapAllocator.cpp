@@ -2,12 +2,16 @@
 #include<cstdio>
 #include <cstddef>
 // Sets up an empty heap over the caller's buffer. firstBlock_ starts as nullptr (see the header).
-// Members are initialised in declaration order, so start_ is ready when the others use it.
+// Skips any bytes needed to align the first block.
 HeapAllocator::HeapAllocator(void* memory, std::size_t size)
-	: start_(static_cast<std::byte*>(memory)),
-	  unusedStart_(start_),
-	  end_(start_ + size)
 {
+	const auto address = reinterpret_cast<std::uintptr_t>(memory);
+	const std::size_t padding = AlignUp(address, kAlignment) - address;
+	const std::size_t skipped = (padding < size) ? padding : size;	// a tiny buffer ends up with no usable space
+
+	start_ = static_cast<std::byte*>(memory) + skipped;
+	unusedStart_ = start_;
+	end_ = static_cast<std::byte*>(memory) + size;
 }
 
 // Returns a pointer to chunkSize usable bytes, or nullptr if the heap is full.
@@ -17,8 +21,8 @@ void* HeapAllocator::Allocate(size_t chunkSize)
 {
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
-	// Header + user data, rounded up to a multiple of 4 bytes
-	size_t neededSize = AlignUp(sizeof(BlockHeader) + chunkSize, 4);
+	// Header + user data, rounded up to the alignment
+	size_t neededSize = AlignUp(sizeof(BlockHeader) + chunkSize, kAlignment);
 
 	// Case 1: the heap is empty, so this becomes the first block in the list
 	if (firstBlock_ == nullptr)

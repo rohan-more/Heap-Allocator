@@ -15,7 +15,7 @@ class HeapAllocator
 {
 public:
 	// Manages size bytes starting at memory. The caller keeps ownership of the buffer,
-	// which must outlive this object and stay aligned to at least 4 bytes.
+	// which must outlive this object.
 	HeapAllocator(void* memory, std::size_t size);
 	// Does nothing to the buffer, because it belongs to the caller.
 	~HeapAllocator() = default;
@@ -37,13 +37,16 @@ public:
 
 private:
 
-	struct BlockHeader
+	static constexpr std::size_t kAlignment = 16;
+
+	struct alignas(kAlignment) BlockHeader
 	{
 		std::size_t fullSize;	// header + user data, rounded up to the alignment
 		std::size_t userSize;	// bytes requested by the caller
 		BlockHeader* next;		// next block in the list (nullptr for the last block)
 		bool isInUse;			// false once the block has been freed
 	};
+	static_assert(sizeof(BlockHeader) % kAlignment == 0, "User data must start on an aligned address");
 
 	// User data starts right after the header
 	static void* UserData(BlockHeader* block) { return block + 1; }
@@ -51,7 +54,7 @@ private:
 	bool CanFit(std::size_t size) const { return size <= static_cast<std::size_t>(end_ - unusedStart_); }
 
 	BlockHeader* firstBlock_ = nullptr;	// first block in the list, or nullptr when the heap is empty
-	std::byte* start_;						// first byte of the buffer
+	std::byte* start_;						// first aligned byte of the buffer
 	std::byte * unusedStart_;					// start of memory that has never been handed out
 	std::byte * end_;							// one past the last byte of the buffer
 };
