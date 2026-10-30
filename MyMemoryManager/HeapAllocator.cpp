@@ -1,6 +1,7 @@
 #include"HeapAllocator.h"
 #include<cstdio>
 #include <cstddef>
+#include <limits>
 // Sets up an empty heap over the caller's buffer. firstBlock_ starts as nullptr (see the header).
 // Skips any bytes needed to align the first block.
 HeapAllocator::HeapAllocator(void* memory, std::size_t size)
@@ -19,6 +20,12 @@ HeapAllocator::HeapAllocator(void* memory, std::size_t size)
 // otherwise carve a new block from the unused memory at the end of the heap.
 void* HeapAllocator::Allocate(size_t chunkSize)
 {
+	// Larger requests would wrap around when the header size is added
+	constexpr std::size_t kMaxRequest = std::numeric_limits<std::size_t>::max() - sizeof(BlockHeader) - (kAlignment - 1);
+	if (chunkSize > kMaxRequest)
+	{
+		return nullptr;
+	}
 	BlockHeader* currentBlock = firstBlock_;
 	BlockHeader* nextBlock = firstBlock_;
 	// Header + user data, rounded up to the alignment
